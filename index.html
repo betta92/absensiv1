@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Absensi Guru Berbasis Lokasi</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 20px; background-color: #f4f7f6; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: inline-block; max-width: 400px; width: 100%; }
+        h2 { color: #2c3e50; }
+        #status { margin: 20px 0; padding: 10px; border-radius: 5px; font-weight: bold; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        select { width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
+        .btn { width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 5px; background-color: #3498db; color: white; cursor: pointer; transition: 0.3s; }
+        .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        .btn:hover:not(:disabled) { background-color: #2980b9; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>Absen Guru</h2>
+        <p>Silahkan pilih nama dan pastikan GPS Anda aktif.</p>
+        
+        <hr>
+
+        <select id="namaGuru">
+            <option value="">-- Pilih Nama Anda --</option>
+            <option value="Budi Santoso">Budi Santoso</option>
+            <option value="Siti Aminah">Siti Aminah</option>
+            <option value="Joko Widodo">Joko Widodo</option>
+            <option value="Sri Mulyani">Sri Mulyani</option>
+        </select>
+
+        <div id="status">Mendeteksi lokasi...</div>
+
+        <button id="btnAbsen" class="btn" disabled>Kirim Absensi</button>
+    </div>
+
+    <script>
+        // --- KONFIGURASI ---
+        const schoolLat = -7.541666; // Ganti dengan Lat sekolah Anda
+        const schoolLng = 108.696523; // Ganti dengan Lng sekolah Anda
+        const maxRadius = 100; // Jarak maksimal dalam meter
+        const scriptURL = https://script.google.com/macros/s/AKfycbwbXRXFKq_IE0jFWIY9TblD1xuXQXiZ-8lpoF3Xd42nCNOvuNaCHw0RNoz_8CzLczH8HQ/exec; // Ganti dengan URL Deployment Anda
+
+        const statusDisplay = document.getElementById('status');
+        const btnAbsen = document.getElementById('btnAbsen');
+        const selectNama = document.getElementById('namaGuru');
+        let userDistance = null;
+
+        // --- FUNGSI HITUNG JARAK ---
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Radius bumi meter
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        // --- CEK LOKASI OTOMATIS ---
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition((position) => {
+                const uLat = position.coords.latitude;
+                const uLng = position.coords.longitude;
+                userDistance = calculateDistance(uLat, uLng, schoolLat, schoolLng);
+
+                if (userDistance <= maxRadius) {
+                    statusDisplay.innerHTML = "Anda berada di area sekolah.";
+                    statusDisplay.className = "success";
+                    btnAbsen.disabled = false;
+                } else {
+                    statusDisplay.innerHTML = `Di luar radius (${Math.round(userDistance)}m dari sekolah)`;
+                    statusDisplay.className = "error";
+                    btnAbsen.disabled = true;
+                }
+            }, (err) => {
+                statusDisplay.innerHTML = "Akses GPS ditolak/gagal.";
+                statusDisplay.className = "error";
+            }, { enableHighAccuracy: true });
+        }
+
+        // --- KIRIM DATA KE GOOGLE SHEETS ---
+        btnAbsen.onclick = () => {
+            const nama = selectNama.value;
+            if (!nama) {
+                alert("Pilih nama terlebih dahulu!");
+                return;
+            }
+
+            btnAbsen.disabled = true;
+            btnAbsen.innerText = "Mengirim...";
+
+            const payload = {
+                nama: nama,
+                jarak: Math.round(userDistance)
+            };
+
+            fetch(scriptURL, {
+                method: 'POST',
+                mode: 'no-cors', // Penting untuk Google Apps Script
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(() => {
+                alert("Absensi Berhasil!");
+                btnAbsen.innerText = "Sudah Terabsen";
+                selectNama.disabled = true;
+            })
+            .catch(error => {
+                alert("Terjadi kesalahan: " + error.message);
+                btnAbsen.disabled = false;
+                btnAbsen.innerText = "Kirim Absensi";
+            });
+        };
+    </script>
+</body>
+</html>
