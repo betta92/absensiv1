@@ -3,120 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Absensi Guru Geolocation</title>
+    <title>Absensi Guru Plus Foto</title>
     <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; text-align: center; padding: 20px; background-color: #eef2f3; }
-        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); display: inline-block; max-width: 450px; width: 100%; }
-        #status { margin: 15px 0; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; }
-        .waiting { background: #fff3cd; color: #856404; }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
-        select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 6px; font-size: 16px; }
-        select { border: 1px solid #ddd; }
-        button { border: none; background: #2c3e50; color: white; cursor: pointer; font-weight: bold; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
+        body { font-family: sans-serif; text-align: center; background: #f0f2f5; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        select, input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
+        #preview { width: 100%; border-radius: 8px; display: none; margin-top: 10px; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        #statusLabel { padding: 10px; border-radius: 5px; margin: 10px 0; font-size: 14px; }
     </style>
 </head>
 <body>
 
-<div class="container">
+<div class="card">
     <h2>📍 Absensi Guru</h2>
-    <p>Sistem Validasi Lokasi Otomatis</p>
-    <hr>
-
+    
     <select id="namaGuru">
-        <option value="">-- Memuat Daftar Guru... --</option>
+        <option value="">-- Memuat Nama... --</option>
     </select>
 
-    <div id="status" class="waiting">Mendeteksi lokasi & data...</div>
+    <select id="statusAbsen">
+        <option value="Hadir">Hadir (Wajib di Lokasi)</option>
+        <option value="Izin">Izin</option>
+        <option value="Sakit">Sakit</option>
+    </select>
 
-    <button id="btnAbsen" disabled>Kirim Absen</button>
+    <p style="text-align:left; font-size:12px; margin-bottom:2px;">Ambil Foto Bukti:</p>
+    <input type="file" id="fotoInput" accept="image/*" capture="camera">
+    <img id="preview" src="" alt="Preview Foto">
+
+    <div id="statusLabel" class="waiting">Mendeteksi lokasi...</div>
+
+    <button id="btnAbsen" disabled>Kirim Absensi</button>
 </div>
 
 <script>
-    // --- KONFIGURASI ---
-    const schoolLat = -7.541549; // GANTI KOORDINAT SEKOLAH
-    const schoolLng = 108.696524; 
-    const maxRadius = 50; 
-    const scriptURL = 'https://script.google.com/macros/s/AKfycbxI-C1VyExxd6I8Ldyha3I6kUEozjgW2p1uVjGOiqDLSfU4Wb6v8s3X1Xrpisk9KpVZ8w/exec'; 
+    const schoolLat = -7.541549; 
+    const schoolLng = 108.696524;
+    const maxRadius = 50;
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbxI-C1VyExxd6I8Ldyha3I6kUEozjgW2p1uVjGOiqDLSfU4Wb6v8s3X1Xrpisk9KpVZ8w/exec';
 
     const selectNama = document.getElementById('namaGuru');
-    const statusDisplay = document.getElementById('status');
+    const selectStatus = document.getElementById('statusAbsen');
+    const fotoInput = document.getElementById('fotoInput');
+    const preview = document.getElementById('preview');
+    const statusLabel = document.getElementById('statusLabel');
     const btnAbsen = document.getElementById('btnAbsen');
-    let userDistance = null;
+    
+    let userDistance = 0;
+    let base64Foto = "";
 
-    // 1. AMBIL DAFTAR NAMA DARI SHEETS SAAT HALAMAN DIBUKA
+    // 1. Ambil Nama Otomatis
     window.onload = () => {
-        fetch(scriptURL)
-            .then(res => res.json())
-            .then(names => {
-                selectNama.innerHTML = '<option value="">-- Pilih Nama Anda --</option>';
-                names.forEach(nama => {
-                    let opt = document.createElement('option');
-                    opt.value = nama;
-                    opt.text = nama;
-                    selectNama.appendChild(opt);
-                });
-            })
-            .catch(err => {
-                statusDisplay.innerHTML = "Gagal memuat daftar nama!";
-                statusDisplay.className = "error";
+        fetch(scriptURL).then(res => res.json()).then(names => {
+            selectNama.innerHTML = '<option value="">-- Pilih Nama --</option>';
+            names.forEach(n => {
+                let o = document.createElement('option'); o.value = n; o.text = n;
+                selectNama.appendChild(o);
             });
-    };
-
-    // 2. HITUNG JARAK (HAVERSINE)
-    function getDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371e3;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-    }
-
-    // 3. PANTAU LOKASI GURU
-    if (navigator.geolocation) {
-        navigator.geolocation.watchPosition(pos => {
-            userDistance = getDistance(pos.coords.latitude, pos.coords.longitude, schoolLat, schoolLng);
-            
-            if (userDistance <= maxRadius) {
-                statusDisplay.innerHTML = `✅ Anda berada di area sekolah (Jarak: ${Math.round(userDistance)}m)`;
-                statusDisplay.className = "success";
-                btnAbsen.disabled = false;
-            } else {
-                statusDisplay.innerHTML = `❌ Di luar area sekolah (Jarak: ${Math.round(userDistance)}m)`;
-                statusDisplay.className = "error";
-                btnAbsen.disabled = true;
-            }
-        }, err => {
-            statusDisplay.innerHTML = "⚠️ Aktifkan GPS dan berikan izin lokasi!";
-            statusDisplay.className = "error";
-        }, { enableHighAccuracy: true });
-    }
-
-    // 4. KIRIM DATA KE GOOGLE SHEETS
-    btnAbsen.onclick = () => {
-        const nama = selectNama.value;
-        if (!nama) return alert("Pilih nama Anda!");
-
-        btnAbsen.disabled = true;
-        btnAbsen.innerText = "Mengirim...";
-
-        fetch(scriptURL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({ nama: nama, jarak: Math.round(userDistance) })
-        }).then(() => {
-            alert("Absensi Berhasil Disimpan!");
-            btnAbsen.innerText = "Selesai";
-        }).catch(() => {
-            alert("Gagal mengirim data!");
-            btnAbsen.disabled = false;
-            btnAbsen.innerText = "Kirim Absen";
         });
     };
-    // Ganti fungsi fotoInput.onchange lama dengan yang ini:
+
+    // 2. Preview Foto & Konversi ke Base64
+    fotoInput.onchange = function() {
+        const file = this.files[0];
+        const reader = new FileReader();
+        reader.onloadend = function() {
+            base64Foto = reader.result;
+            preview.src = base64Foto;
+            preview.style.display = "block";
+        }
+        if (file) reader.readAsDataURL(file);
+    };
+// Ganti fungsi fotoInput.onchange lama dengan yang ini:
 fotoInput.onchange = function() {
     const file = this.files[0];
     if (!file) return;
@@ -150,7 +110,66 @@ fotoInput.onchange = function() {
         }
     };
 };
-</script>
+    // 3. Cek Lokasi (Hanya membatasi jika status "Hadir")
+    function checkLogic() {
+        const status = selectStatus.value;
+        if (status === "Hadir") {
+            if (userDistance <= maxRadius) {
+                statusLabel.innerHTML = "✅ Lokasi Sesuai";
+                statusLabel.className = "success";
+                btnAbsen.disabled = false;
+            } else {
+                statusLabel.innerHTML = "❌ Anda di luar jangkauan sekolah!";
+                statusLabel.className = "error";
+                btnAbsen.disabled = true;
+            }
+        } else {
+            // Jika Izin atau Sakit, tombol tetap aktif meski jauh dari sekolah
+            statusLabel.innerHTML = "ℹ️ Status Izin/Sakit (Lokasi diabaikan)";
+            statusLabel.className = "success";
+            btnAbsen.disabled = false;
+        }
+    }
 
+    // Pantau Geolocation
+    if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(pos => {
+            userDistance = calculateDistance(pos.coords.latitude, pos.coords.longitude, schoolLat, schoolLng);
+            checkLogic();
+        });
+    }
+
+    selectStatus.onchange = checkLogic;
+
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371e3;
+        const dLat = (lat2-lat1)*Math.PI/180;
+        const dLon = (lon2-lon1)*Math.PI/180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    // 4. Kirim Data
+    btnAbsen.onclick = () => {
+        if (!selectNama.value || !base64Foto) return alert("Lengkapi Nama dan Foto!");
+        
+        btnAbsen.innerText = "Sedang Mengirim...";
+        btnAbsen.disabled = true;
+
+        fetch(scriptURL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({
+                nama: selectNama.value,
+                status_absen: selectStatus.value,
+                jarak: Math.round(userDistance),
+                foto: base64Foto
+            })
+        }).then(() => {
+            alert("Absensi Berhasil!");
+            location.reload();
+        });
+    };
+</script>
 </body>
 </html>
