@@ -3,120 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Absensi Guru Berbasis Lokasi</title>
+    <title>Absensi Guru Geolocation</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 20px; background-color: #f4f7f6; }
-        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: inline-block; max-width: 400px; width: 100%; }
-        h2 { color: #2c3e50; }
-        #status { margin: 20px 0; padding: 10px; border-radius: 5px; font-weight: bold; }
-        .success { background-color: #d4edda; color: #155724; }
-        .error { background-color: #f8d7da; color: #721c24; }
-        select { width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
-        .btn { width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 5px; background-color: #3498db; color: white; cursor: pointer; transition: 0.3s; }
-        .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
-        .btn:hover:not(:disabled) { background-color: #2980b9; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; text-align: center; padding: 20px; background-color: #eef2f3; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); display: inline-block; max-width: 450px; width: 100%; }
+        #status { margin: 15px 0; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; }
+        .waiting { background: #fff3cd; color: #856404; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 6px; font-size: 16px; }
+        select { border: 1px solid #ddd; }
+        button { border: none; background: #2c3e50; color: white; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h2>Absen Guru</h2>
-        <p>Silahkan pilih nama dan pastikan GPS Anda aktif.</p>
-        
-        <hr>
+<div class="container">
+    <h2>📍 Absensi Guru</h2>
+    <p>Sistem Validasi Lokasi Otomatis</p>
+    <hr>
 
-        <select id="namaGuru">
-            <option value="">-- Pilih Nama Anda --</option>
-            <option value="Budi Santoso">Budi Santoso</option>
-            <option value="Siti Aminah">Siti Aminah</option>
-            <option value="Joko Widodo">Joko Widodo</option>
-            <option value="Sri Mulyani">Sri Mulyani</option>
-        </select>
+    <select id="namaGuru">
+        <option value="">-- Memuat Daftar Guru... --</option>
+    </select>
 
-        <div id="status">Mendeteksi lokasi...</div>
+    <div id="status" class="waiting">Mendeteksi lokasi & data...</div>
 
-        <button id="btnAbsen" class="btn" disabled>Kirim Absensi</button>
-    </div>
+    <button id="btnAbsen" disabled>Kirim Absen</button>
+</div>
 
-    <script>
-        // --- KONFIGURASI ---
-        const schoolLat = -7.541666; // Ganti dengan Lat sekolah Anda
-        const schoolLng = 108.696523; // Ganti dengan Lng sekolah Anda
-        const maxRadius = 100; // Jarak maksimal dalam meter
-        const scriptURL = https://script.google.com/macros/s/AKfycbwbXRXFKq_IE0jFWIY9TblD1xuXQXiZ-8lpoF3Xd42nCNOvuNaCHw0RNoz_8CzLczH8HQ/exec; // Ganti dengan URL Deployment Anda
+<script>
+    // --- KONFIGURASI ---
+    const schoolLat = -7.541549; // GANTI KOORDINAT SEKOLAH
+    const schoolLng = 108.696524; 
+    const maxRadius = 100; 
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbzYoXi_sjPkzhdFiax27vSUJDV4OgfOPkiqvHgrIqJN9scEY1K-HpLDMKhPUVIWPl75qw/exec'; 
 
-        const statusDisplay = document.getElementById('status');
-        const btnAbsen = document.getElementById('btnAbsen');
-        const selectNama = document.getElementById('namaGuru');
-        let userDistance = null;
+    const selectNama = document.getElementById('namaGuru');
+    const statusDisplay = document.getElementById('status');
+    const btnAbsen = document.getElementById('btnAbsen');
+    let userDistance = null;
 
-        // --- FUNGSI HITUNG JARAK ---
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; // Radius bumi meter
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c;
-        }
-
-        // --- CEK LOKASI OTOMATIS ---
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition((position) => {
-                const uLat = position.coords.latitude;
-                const uLng = position.coords.longitude;
-                userDistance = calculateDistance(uLat, uLng, schoolLat, schoolLng);
-
-                if (userDistance <= maxRadius) {
-                    statusDisplay.innerHTML = "Anda berada di area sekolah.";
-                    statusDisplay.className = "success";
-                    btnAbsen.disabled = false;
-                } else {
-                    statusDisplay.innerHTML = `Di luar radius (${Math.round(userDistance)}m dari sekolah)`;
-                    statusDisplay.className = "error";
-                    btnAbsen.disabled = true;
-                }
-            }, (err) => {
-                statusDisplay.innerHTML = "Akses GPS ditolak/gagal.";
+    // 1. AMBIL DAFTAR NAMA DARI SHEETS SAAT HALAMAN DIBUKA
+    window.onload = () => {
+        fetch(scriptURL)
+            .then(res => res.json())
+            .then(names => {
+                selectNama.innerHTML = '<option value="">-- Pilih Nama Anda --</option>';
+                names.forEach(nama => {
+                    let opt = document.createElement('option');
+                    opt.value = nama;
+                    opt.text = nama;
+                    selectNama.appendChild(opt);
+                });
+            })
+            .catch(err => {
+                statusDisplay.innerHTML = "Gagal memuat daftar nama!";
                 statusDisplay.className = "error";
-            }, { enableHighAccuracy: true });
-        }
-
-        // --- KIRIM DATA KE GOOGLE SHEETS ---
-        btnAbsen.onclick = () => {
-            const nama = selectNama.value;
-            if (!nama) {
-                alert("Pilih nama terlebih dahulu!");
-                return;
-            }
-
-            btnAbsen.disabled = true;
-            btnAbsen.innerText = "Mengirim...";
-
-            const payload = {
-                nama: nama,
-                jarak: Math.round(userDistance)
-            };
-
-            fetch(scriptURL, {
-                method: 'POST',
-                mode: 'no-cors', // Penting untuk Google Apps Script
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
-            .then(() => {
-                alert("Absensi Berhasil!");
-                btnAbsen.innerText = "Sudah Terabsen";
-                selectNama.disabled = true;
-            })
-            .catch(error => {
-                alert("Terjadi kesalahan: " + error.message);
-                btnAbsen.disabled = false;
-                btnAbsen.innerText = "Kirim Absensi";
             });
-        };
-    </script>
+    };
+
+    // 2. HITUNG JARAK (HAVERSINE)
+    function getDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371e3;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    // 3. PANTAU LOKASI GURU
+    if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(pos => {
+            userDistance = getDistance(pos.coords.latitude, pos.coords.longitude, schoolLat, schoolLng);
+            
+            if (userDistance <= maxRadius) {
+                statusDisplay.innerHTML = `✅ Anda berada di area sekolah (Jarak: ${Math.round(userDistance)}m)`;
+                statusDisplay.className = "success";
+                btnAbsen.disabled = false;
+            } else {
+                statusDisplay.innerHTML = `❌ Di luar area sekolah (Jarak: ${Math.round(userDistance)}m)`;
+                statusDisplay.className = "error";
+                btnAbsen.disabled = true;
+            }
+        }, err => {
+            statusDisplay.innerHTML = "⚠️ Aktifkan GPS dan berikan izin lokasi!";
+            statusDisplay.className = "error";
+        }, { enableHighAccuracy: true });
+    }
+
+    // 4. KIRIM DATA KE GOOGLE SHEETS
+    btnAbsen.onclick = () => {
+        const nama = selectNama.value;
+        if (!nama) return alert("Pilih nama Anda!");
+
+        btnAbsen.disabled = true;
+        btnAbsen.innerText = "Mengirim...";
+
+        fetch(scriptURL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({ nama: nama, jarak: Math.round(userDistance) })
+        }).then(() => {
+            alert("Absensi Berhasil Disimpan!");
+            btnAbsen.innerText = "Selesai";
+        }).catch(() => {
+            alert("Gagal mengirim data!");
+            btnAbsen.disabled = false;
+            btnAbsen.innerText = "Kirim Absen";
+        });
+    };
+</script>
+
 </body>
 </html>
